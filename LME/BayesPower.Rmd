@@ -1,0 +1,372 @@
+```{r}
+library(lme4)
+library(lmerTest)
+library(dplyr)
+library(BayesFactor)
+library(tidyverse)
+library(multcomp)
+```
+
+
+```{r}
+dataP2 <- read.csv('/Users/ibrahimnebioglu/Downloads/aydan/powerTrialsCorr180.csv')
+
+dataPow2 <- dataP2 %>%
+  pivot_longer(cols = starts_with("avg_power"),
+               names_to = c("Band", "Channel"),
+               names_pattern = "avg_power_(\\d+_\\d+)_(\\w+)",
+               values_to = "Value")
+
+dataPow2$Band <- factor(dataPow2$Band, levels = c("4_7", "8_12", "13_30"), labels = c("theta", "alpha", "beta"))
+dataPow2$Group <- factor(dataPow2$Group, levels = c(1, 2), labels = c("HC", "rMDD"))
+dataPow2 <- dataPow2 %>%
+  mutate(Fant = ifelse(grepl("^f", InterventionOrder), InterventionOrder, "None"),
+         Med = ifelse(grepl("^m", InterventionOrder), InterventionOrder, "None"))
+
+dataPow2$Fant <- factor(dataPow2$Fant, levels = c("f0", "f1", "None"))
+dataPow2$Med <- factor(dataPow2$Med, levels = c("m0", "m1", "None"))
+
+dataPow2$Channel <- sub(".*_", "", dataPow2$Channel)
+
+dataPow2 <- dataPow2 %>%
+  mutate(Value = log10(Value))
+```
+
+```{r}
+aggregated_data <- dataPow2 %>%
+  group_by(Participant, Thought, Band, Channel, Fant, Med, Group) %>%
+  summarise(Avg_Value = mean(Value, na.rm = TRUE), .groups = 'drop')
+
+aggregated_data$Participant <- as.factor(aggregated_data$Participant)
+```
+
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Group + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Group + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/group180.csv", row.names = FALSE)
+```
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Fant * Med + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/interVENTION180.csv", row.names = FALSE)
+```
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Fant * Med * Group + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Fant + Med + Group + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/interaction180.csv", row.names = FALSE)
+```
+
+
+```{r}
+dataP2 <- read.csv('/Users/ibrahimnebioglu/Downloads/aydan/powerTrialsCorrOG.csv')
+
+dataPow2 <- dataP2 %>%
+  pivot_longer(cols = starts_with("avg_power"),
+               names_to = c("Band", "Channel"),
+               names_pattern = "avg_power_(\\d+_\\d+)_(\\w+)",
+               values_to = "Value")
+
+dataPow2$Band <- factor(dataPow2$Band, levels = c("4_7", "8_12", "13_30"), labels = c("theta", "alpha", "beta"))
+dataPow2$Group <- factor(dataPow2$Group, levels = c(1, 2), labels = c("HC", "rMDD"))
+dataPow2 <- dataPow2 %>%
+  mutate(Fant = ifelse(grepl("^f", InterventionOrder), InterventionOrder, "None"),
+         Med = ifelse(grepl("^m", InterventionOrder), InterventionOrder, "None"))
+
+dataPow2$Fant <- factor(dataPow2$Fant, levels = c("f0", "f1", "None"))
+dataPow2$Med <- factor(dataPow2$Med, levels = c("m0", "m1", "None"))
+
+dataPow2$Channel <- sub(".*_", "", dataPow2$Channel)
+
+dataPow2 <- dataPow2 %>%
+  mutate(Value = log10(Value))
+```
+
+```{r}
+aggregated_data <- dataPow2 %>%
+  group_by(Participant, Thought, Band, Channel, Fant, Med, Group) %>%
+  summarise(Avg_Value = mean(Value, na.rm = TRUE), .groups = 'drop')
+
+aggregated_data$Participant <- as.factor(aggregated_data$Participant)
+```
+
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Group + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Group + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/group350.csv", row.names = FALSE)
+```
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Fant * Med + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Fant + Med + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/interVENTION350.csv", row.names = FALSE)
+```
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Fant * Med * Group + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Fant + Med + Group + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/interaction350.csv", row.names = FALSE)
+```
+
+
+```{r}
+dataP2 <- read.csv('/Users/ibrahimnebioglu/Downloads/aydan/powerTrialsCorr600.csv')
+
+dataPow2 <- dataP2 %>%
+  pivot_longer(cols = starts_with("avg_power"),
+               names_to = c("Band", "Channel"),
+               names_pattern = "avg_power_(\\d+_\\d+)_(\\w+)",
+               values_to = "Value")
+
+dataPow2$Band <- factor(dataPow2$Band, levels = c("4_7", "8_12", "13_30"), labels = c("theta", "alpha", "beta"))
+dataPow2$Group <- factor(dataPow2$Group, levels = c(1, 2), labels = c("HC", "rMDD"))
+dataPow2 <- dataPow2 %>%
+  mutate(Fant = ifelse(grepl("^f", InterventionOrder), InterventionOrder, "None"),
+         Med = ifelse(grepl("^m", InterventionOrder), InterventionOrder, "None"))
+
+dataPow2$Fant <- factor(dataPow2$Fant, levels = c("f0", "f1", "None"))
+dataPow2$Med <- factor(dataPow2$Med, levels = c("m0", "m1", "None"))
+
+dataPow2$Channel <- sub(".*_", "", dataPow2$Channel)
+
+dataPow2 <- dataPow2 %>%
+  mutate(Value = log10(Value))
+```
+
+```{r}
+aggregated_data <- dataPow2 %>%
+  group_by(Participant, Thought, Band, Channel, Fant, Med, Group) %>%
+  summarise(Avg_Value = mean(Value, na.rm = TRUE), .groups = 'drop')
+
+aggregated_data$Participant <- as.factor(aggregated_data$Participant)
+
+```
+
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Group + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Group + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/group600.csv", row.names = FALSE)
+```
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Fant * Med + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Fant + Med + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/interVENTION600null.csv", row.names = FALSE)
+```
+
+```{r}
+counter <- 1
+total_runs <- length(unique(aggregated_data$Band)) * length(unique(aggregated_data$Channel))
+
+bf_results_df <- data.frame()
+
+for (band in unique(aggregated_data$Band)) {
+  data_band <- subset(aggregated_data, Band == band)
+  for (channel in unique(data_band$Channel)) {
+    data_channel <- subset(data_band, Channel == channel)
+    
+  
+    bf_model <- lmBF(Avg_Value ~ Thought * Fant * Med * Group + Participant, data = data_channel, whichRandom = "Participant")
+    null_model <- lmBF(Avg_Value ~ Thought + Fant + Med + Group + Participant, data = data_channel, whichRandom = "Participant")
+  
+    bf_comparison <- bf_model / null_model
+    bf_value <- extractBF(bf_comparison)$bf
+    
+    bf_results_df <- rbind(bf_results_df, data.frame(Band = band, Channel = channel, BF_Value = bf_value))
+    
+    cat("Band:", band, "Channel:", channel, "BF:", bf_value, "\n")
+    cat(paste0(counter, "/", total_runs, "\n"))
+    counter <- counter + 1
+  }
+}
+
+write.csv(bf_results_df, file = "/Users/ibrahimnebioglu/Downloads/aydan/interaction600null.csv", row.names = FALSE)
+```

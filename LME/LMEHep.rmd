@@ -1,0 +1,178 @@
+```{r}
+library(lme4)
+library(lmerTest)
+library(dplyr)
+library(BayesFactor)
+library(tidyverse)
+library(multcomp)
+
+data3 <- read.csv('/Users/aydanyagublu/eeglab2023.1/PROPER/GLM_data180350woOutlier.csv')
+#data3 <- read.csv('/Users/aydanyagublu/amplitude300-500.csv')
+
+data_long <- data3 %>%
+  pivot_longer(cols = -c(Subject_ID, Group, Order, InterventionOrder, Intervention, Measure), 
+               names_to = c("Thought", "Channel"), 
+               names_pattern = "AAmplitude_(Self|Non_Self)_(\\d+)",
+               values_to = "Amplitude")
+
+data_long$Group[data_long$Group == 1] <- "HC"
+data_long$Group[data_long$Group == 2] <- "rMDD"
+data_long$Amplitude <- abs(data_long$Amplitude)
+channel_lookup <- data.frame(Channel = c("Pz", "Cz", "Fz", "Fp1", "Fp2", "F3", "F4", "F7", "F8", "AF3", "AF4", "FC1", "FC2", "FC5", "FC6", "P3", "P4"),
+                             Number = c(13, 32, 31, 1, 30, 4, 27, 3, 28, 2, 29, 5, 26, 6, 25, 12, 19))
+
+data_long$Channel <- channel_lookup$Channel[match(data_long$Channel, channel_lookup$Number)]
+data_long <- data_long %>%
+  mutate(Fant = ifelse(grepl("^f", InterventionOrder), InterventionOrder, "None"),
+         Med = ifelse(grepl("^m", InterventionOrder), InterventionOrder, "None"))
+
+data_long$Fant <- factor(data_long$Fant, levels = c("f0", "f1", "None"))
+data_long$Med <- factor(data_long$Med, levels = c("m0", "m1", "None"))
+
+data_long$Channel <- factor(data_long$Channel)
+#write.csv(data_long, file = "/Users/aydanyagublu/eeglab2023.1/PROPER/dataHEP.csv", row.names = FALSE)
+
+```
+
+```{r}
+data_long <- data_long %>%
+  mutate(Amplitude_Log = log10(Amplitude))
+coef_df <- data.frame()
+
+data_long <- data_long %>%
+  filter(Subject_ID != "")
+```
+
+```{r}
+posthoc_results <- list()
+unique_channels <- unique(data_long$Channel)
+for (channel in unique_channels) {
+  cat("Channel:", channel, "\n")
+  
+  data_channel <- subset(data_long, Channel == channel)
+  
+  
+  model <- lmer(Amplitude_Log ~ Thought  + (1 | Subject_ID), data = data_channel)
+  
+  model_summary <- summary(model)
+  model_int <- glht(model, linfct = mcp(Thought = "Tukey"))
+  
+  posthoc_results[[paste(channel, sep = "_")]] <- summary(model_int)
+  
+  model_coefs <- coef(model_summary)
+  term_names <- rownames(model_coefs)
+  
+  p_values <- coef(summary(model))[, "Pr(>|t|)"]
+  
+  stars <- ifelse(p_values < 0.001, "***",
+           ifelse(p_values < 0.01, "**",
+           ifelse(p_values < 0.05, "*", "")))
+  
+  posthoc_p_values <- summary(model_int)$test$pvalues
+  
+  model_coefs_df <- data.frame(Term = term_names,
+                               Coefficient = model_coefs,
+                               P_Value = p_values,
+                               Significance = stars,
+                               Posthoc_P_Value = c(posthoc_p_values),
+                               Channel = channel)
+  
+  coef_df <- rbind(coef_df, model_coefs_df)
+  
+}
+
+write.csv(coef_df, file = "/Users/aydanyagublu/eeglab2023.1/PROPER/new/logamplitude350.csv", row.names = FALSE)
+
+```
+
+```{r}
+data_long$Amplitude_Log <- log1p(data_long$Amplitude) 
+
+ggplot(data_long, aes(x = Amplitude_Log, fill = Thought)) +
+  geom_histogram(alpha = 0.5, position = "identity") +
+  facet_wrap(~ Channel, scales = "free") +
+  theme_minimal()
+```
+
+```{r}
+coef_df <- data.frame()
+
+unique_channels <- unique(data_long$Channel)
+for (channel in unique_channels) {
+  cat("Channel:", channel, "\n")
+  
+  data_channel <- subset(data_long, Channel == channel)
+  
+  model <- lmer(Amplitude_Log ~ Thought * Fant * Med + (1 | Subject_ID), data = data_channel)
+  
+  model_summary <- summary(model)
+  model_int <- glht(model, linfct = mcp(Thought = "Tukey"))
+  
+  posthoc_results[[paste(channel, sep = "_")]] <- summary(model_int)
+  
+  model_coefs <- coef(model_summary)
+  term_names <- rownames(model_coefs)
+  
+  p_values <- coef(summary(model))[, "Pr(>|t|)"]
+  
+  stars <- ifelse(p_values < 0.001, "***",
+           ifelse(p_values < 0.01, "**",
+           ifelse(p_values < 0.05, "*", "")))
+  
+  posthoc_p_values <- summary(model_int)$test$pvalues
+  bf_model <- lmBF(Amplitude_Log ~ Thought * Fant * Med + Subject_ID, data = data_channel, whichRandom = "Subject_ID")
+  no_int <- lmBF(formula = Amplitude_Log ~ Thought + Fant + Med + Subject_ID, data = data_channel, whichRandom = "Subject_ID")
+  
+  bf_comparison <- bf_model / no_int
+  bf_value <- extractBF(bf_comparison)$bf
+  
+  model_coefs_df <- data.frame(Term = term_names,
+                               Coefficient = model_coefs,
+                               P_Value = p_values,
+                               Significance = stars,
+                               Posthoc_P_Value = c(posthoc_p_values),
+                               BF = bf_value,
+                               Channel = channel)
+  
+  coef_df <- rbind(coef_df, model_coefs_df)
+  
+}
+
+write.csv(coef_df, file = "/Users/aydanyagublu/eeglab2023.1/PROPER/new/bayesinterVENTION350.csv", row.names = FALSE)
+
+```
+
+
+```{r}
+unique_channels <- unique(data_long$Channel)
+anova_comparison <- data.frame()
+
+
+for (channel in unique_channels) {
+  cat("Channel:", channel, "\n")
+  
+  data_channel <- subset(data_long, Channel == channel)
+  
+  model_simple <- lmer(Amplitude_Log ~ Thought + (1 | Subject_ID), data = data_channel)
+  model_complex <- lmer(Amplitude_Log ~ Thought * Group + (1 | Subject_ID), data = data_channel)
+  model_third <- lmer(Amplitude_Log ~ Thought * Fant * Med + (1 | Subject_ID), data = data_channel)
+  model_fourth <- lmer(Amplitude_Log ~ Thought * Group * Fant * Med + (1 | Subject_ID), data = data_channel)
+  
+  anova_group <- anova(model_simple, model_complex)
+  anova_group_p_value <- anova_group[2, "Pr(>Chisq)"]
+  
+  anova_intervention <- anova(model_simple, model_third)
+  anova_intervention_p_value <- anova_intervention[2, "Pr(>Chisq)"]
+  
+  anova_interaction <- anova(model_simple, model_fourth)
+  anova_interaction_p_value <- anova_interaction[2, "Pr(>Chisq)"]
+  
+  anova_comparison <- rbind(anova_comparison, data.frame(Channel = channel, 
+                                                         ANOVA_Group_P_Value = anova_group_p_value, 
+                                                         ANOVA_Intervention_P_Value = anova_intervention_p_value, 
+                                                         ANOVA_Interaction_P_Value = anova_interaction_p_value))
+}
+
+write.csv(anova_comparison, file = "/Users/aydanyagublu/eeglab2023.1/PROPER/new/anovahep350.csv", row.names = FALSE)
+```
+
