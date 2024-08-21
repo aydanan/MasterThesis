@@ -131,7 +131,7 @@
   - Bayes Factor results for each model are saved to CSV files, providing a measure of the strength of evidence for each interaction effect.
  
   
-### Classification in `classification.ipynb` in the classification folder
+## Classification in `classification.ipynb` in the classification folder
 - **Data Preparation**:
   - Reads the brain oscillatory power data from the CSV file created in `LMEPowerData.m`
   - Data is preprocessed and significant features obtained from the LME are extracted for use in classification models.
